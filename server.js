@@ -148,18 +148,15 @@ async function runStartupMigrations() {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`السيرفر يعمل على المنفذ ${PORT}`);
   startCleanupScheduler();
 
-  // تشغيل فحص قاعدة البيانات والـ Migrations في الخلفية لسرعة الإقلاع
-  setImmediate(async () => {
-    try {
-      await sequelize.authenticate();
-      console.log('تم تأكيد الاتصال بقاعدة البيانات.');
-      await runStartupMigrations();
-    } catch (error) {
-      console.error('فشل الاتصال بقاعدة البيانات:', error);
-    }
-  });
+  try {
+    await sequelize.authenticate();
+    console.log('تم تأكيد الاتصال بقاعدة البيانات.');
+    await runStartupMigrations();
+  } catch (error) {
+    console.error('فشل الاتصال بقاعدة البيانات:', error);
+  }
 });
