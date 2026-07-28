@@ -1,0 +1,23 @@
+# Node dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+debug.log
+npm-debug.log*
+
+# Application uploads and backups (exclude dynamic user content from git tracking)
+uploads/*
+!uploads/.gitkeep
+backups/*
+!backups/.gitkeep
+
+# System files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+.env
+uploads/*
+backups/*
+.git
+.gitignore
+.vscode
+.agents
+.gemini
