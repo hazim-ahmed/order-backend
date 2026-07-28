@@ -68,8 +68,7 @@ const syncWithERP = async () => {
           name: productData.name,
           current_price_per_ton: productData.current_price_per_ton,
           stock_quantity: 0, // المخزون لا يأتي من الـ ERP حسب المتطلبات، فقط الأسعار
-          unit: 'kg',
-          updated_at: new Date()
+          unit: 'kg'
         }
       });
 
@@ -77,7 +76,6 @@ const syncWithERP = async () => {
         // تحديث السعر فقط (لا نمس المخزون الداخلي)
         product.name = productData.name;
         product.current_price_per_ton = productData.current_price_per_ton;
-        product.updated_at = new Date();
         await product.save();
       }
     }
