@@ -4,8 +4,9 @@
  * [إصلاح M-2]: إخفاء رسائل الخطأ الداخلية في Production
  */
 
-const { Product, Category } = require('../models');
+const { Product, Category, ERPSettings, sequelize } = require('../models');
 const axios = require('axios');
+const net = require('net');
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -307,40 +308,88 @@ const remove = async (req, res) => {
   }
 };
 
+// يقرأ القوائم النصية المفصولة بفواصل ويعيدها بدون فراغات أو تكرار.
+const parseCommaList = (...values) => {
+  return Array.from(new Set(values
+    .filter(Boolean)
+    .flatMap(value => String(value).split(','))
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean)));
+};
+
+// يفحص نطاقات IPv4 الخاصة والمحلية لمنع SSRF نحو الشبكات الداخلية.
+const isPrivateIPv4 = (hostname) => {
+  const parts = hostname.split('.').map(part => Number(part));
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  return parts[0] === 10 ||
+    parts[0] === 127 ||
+    (parts[0] === 169 && parts[1] === 254) ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168);
+};
+
+// يمنع أسماء المضيفين والعناوين الداخلية الشائعة قبل الاتصال الخارجي.
+const isForbiddenErpHost = (hostname) => {
+  const normalizedHost = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (['localhost', '0.0.0.0', '::1'].includes(normalizedHost)) return true;
+  if (normalizedHost.endsWith('.internal') || normalizedHost.endsWith('.local')) return true;
+  if (net.isIP(normalizedHost) === 4 && isPrivateIPv4(normalizedHost)) return true;
+  if (net.isIP(normalizedHost) === 6 && (normalizedHost.startsWith('fc') || normalizedHost.startsWith('fd') || normalizedHost.startsWith('fe80'))) return true;
+  return false;
+};
+
+// يتحقق من رابط ERP باستخدام HTTPS في الإنتاج وallowlist عند ضبطها.
+const validateErpBaseUrl = (cleanBaseUrl, allowedHosts) => {
+  const parsedUrl = new URL(cleanBaseUrl);
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const isDevEnv = process.env.NODE_ENV === 'development';
+
+  if (!isDevEnv && parsedUrl.protocol !== 'https:') {
+    throw new Error('رابط ERP يجب أن يعمل عبر HTTPS فقط في بيئة الإنتاج.');
+  }
+  if (isForbiddenErpHost(hostname)) {
+    throw new Error('عنوان ERP المرفق غير مسموح به لأن العناوين الداخلية محظورة.');
+  }
+  if (allowedHosts.length > 0 && !allowedHosts.includes(hostname)) {
+    throw new Error('نطاق ERP غير موجود في قائمة النطاقات المسموحة.');
+  }
+
+  return parsedUrl;
+};
 /**
  * مزامنة المنتجات مع الـ ERP الخارجي
  */
 const syncErp = async (req, res) => {
   try {
-    const { baseUrl, login_company, username, password, app_type, app_version, category_id } = req.body;
-    
+    const { category_id } = req.body;
+    const activeErpSettings = await ERPSettings.findOne({ where: { is_active: true }, order: [['updatedAt', 'DESC']] });
+    const bodyCredentialsAllowed = process.env.ALLOW_ERP_CREDENTIALS_IN_BODY === 'true' && process.env.NODE_ENV !== 'production';
+    const requestCredentials = bodyCredentialsAllowed ? req.body : {};
+
+    const login_company = activeErpSettings?.login_company || requestCredentials.login_company;
+    const username = activeErpSettings?.username || requestCredentials.username;
+    const password = activeErpSettings ? ERPSettings.decryptPassword(activeErpSettings) : requestCredentials.password;
+    const app_type = activeErpSettings?.app_type || requestCredentials.app_type || 'desktop';
+    const app_version = activeErpSettings?.app_version || requestCredentials.app_version || '1.0.0';
+
     if (!login_company || !username || !password) {
-      return res.status(400).json({ error: 'الرجاء توفير اسم الشركة، اسم المستخدم وكلمة المرور' });
+      return res.status(400).json({ error: 'إعدادات ERP غير مكتملة. الرجاء حفظ بيانات الاعتماد من مسار إعدادات ERP الآمن.' });
     }
 
-    // اعتماد الرابط المدمج بالنظام في حال عدم تمريره من واجهة التخصيص
-    const rawUrl = (baseUrl && baseUrl.trim()) ? baseUrl.trim() : (process.env.ERP_BASE_URL || 'https://smarterp.top/api/v3');
-    const cleanBaseUrl = rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl;
+    const rawUrl = activeErpSettings?.base_url || process.env.ERP_BASE_URL;
+    if (!rawUrl || !String(rawUrl).trim()) {
+      return res.status(400).json({ error: 'رابط ERP غير مضبوط في الإعدادات أو متغيرات البيئة.' });
+    }
+    const cleanBaseUrl = String(rawUrl).trim().endsWith('/') ? String(rawUrl).trim().slice(0, -1) : String(rawUrl).trim();
+    const allowedHosts = parseCommaList(process.env.ERP_ALLOWED_HOSTS, activeErpSettings?.allowed_hosts);
 
-    // فحص حظر ثغرات SSRF والتأكد من أمان الرابط
     try {
-      const parsedUrl = new URL(cleanBaseUrl);
-      const isDev = process.env.NODE_ENV === 'development';
-      if (!isDev && parsedUrl.protocol !== 'https:') {
-        return res.status(400).json({ error: 'رابط الـ ERP يجب أن يعمل عبر بروتوكول مشفر HTTPS فقط في بيئة الإنتاج.' });
-      }
-      const forbiddenHosts = ['localhost', '127.0.0.1', '169.254.169.254', '0.0.0.0', '::1'];
-      if (forbiddenHosts.includes(parsedUrl.hostname) || parsedUrl.hostname.endsWith('.internal') || parsedUrl.hostname.endsWith('.local')) {
-        return res.status(400).json({ error: 'عنون الـ ERP المرفق غير مسموح به (العناوين الداخلية محظورة).' });
-      }
-    } catch (e) {
-      return res.status(400).json({ error: 'رابط الـ ERP غير صالح.' });
+      validateErpBaseUrl(cleanBaseUrl, allowedHosts);
+    } catch (error) {
+      return res.status(400).json({ error: error.message || 'رابط ERP غير صالح.' });
     }
 
-    // ربط الأصناف بقسم محدد في قاعدة البيانات (افتراضياً القسم رقم 3)
     const targetCategoryId = category_id ? Number(category_id) : 3;
-
-    // التأكد من وجود القسم في قاعدة البيانات أو إنشائه تلقائياً إذا لم يكن موجوداً
     let targetCategory = await Category.findByPk(targetCategoryId);
     if (!targetCategory) {
       targetCategory = await Category.create({
@@ -515,41 +564,25 @@ const syncErp = async (req, res) => {
  * حذف كافة المنتجات من النظام
  */
 const removeAll = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const allProducts = await Product.findAll();
-    if (allProducts.length === 0) {
-      return res.status(200).json({ message: 'لا توجد منتجات لحذفها.', count: 0 });
-    }
+    // نحذف المنتجات كعملية واحدة حتى لا ينتهي النظام بحذف جزئي.
+    const deletedCount = await Product.destroy({ where: {}, transaction });
 
-    let deletedCount = 0;
-    let failedCount = 0;
-
-    for (const prod of allProducts) {
-      try {
-        await prod.destroy();
-        deletedCount++;
-      } catch (e) {
-        failedCount++;
-      }
-    }
-
-    if (deletedCount === 0 && failedCount > 0) {
-      return res.status(400).json({
-        error: 'لا يمكن حذف المنتجات لأن جميعها مرتبطة بطلبات قائمة في النظام.'
-      });
-    }
-
-    let msg = `تم حذف ${deletedCount} منتج بنجاح.`;
-    if (failedCount > 0) {
-      msg += ` (توجب الإبقاء على ${failedCount} منتج لارتباطها بطلبات مسجلة).`;
-    }
-
-    res.status(200).json({ message: msg, count: deletedCount, failedCount });
+    await transaction.commit();
+    res.status(200).json({
+      message: deletedCount === 0 ? 'لا توجد منتجات لحذفها.' : `تم حذف ${deletedCount} منتج بنجاح.`,
+      count: deletedCount,
+      failedCount: 0
+    });
   } catch (error) {
+    await transaction.rollback();
     console.error('productController.removeAll Error:', error);
+    if (error.name === 'SequelizeForeignKeyConstraintError') {
+      return res.status(400).json({ error: 'لا يمكن حذف جميع المنتجات لأن بعضها مرتبط بطلبات مسجلة في النظام.' });
+    }
     res.status(500).json({ error: isDev ? error.message : 'حدث خطأ أثناء تنفيذ أمر حذف كافة المنتجات.' });
   }
 };
-
 module.exports = { getAll, getById, create, update, remove, removeAll, syncErp };
 

@@ -12,6 +12,24 @@ const SOCKET_EVENTS = require('../constants/socketEvents');
 
 let io;
 
+// يقرأ أصول Socket.io المسموحة من CLIENT_URL و FRONTEND_URL مع دعم القيم المفصولة بفواصل.
+const parseSocketOrigins = (...values) => {
+  return Array.from(new Set(values
+    .filter(Boolean)
+    .flatMap(value => String(value).split(','))
+    .map(value => value.trim())
+    .filter(Boolean)));
+};
+
+// يضيف أصول التطوير المحلية فقط خارج الإنتاج حتى لا تصبح قاعدة الإنتاج مفتوحة.
+const getSocketAllowedOrigins = () => {
+  const origins = parseSocketOrigins(process.env.CLIENT_URL, process.env.FRONTEND_URL);
+  if (process.env.NODE_ENV !== 'production') {
+    const localOrigins = ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000'];
+    origins.push(...localOrigins.filter(origin => !origins.includes(origin)));
+  }
+  return origins;
+};
 // ==============================================================================
 // تاريخ التعديل: 2026-07-22
 // الوظيفة: تهيئة خادم Socket.io وتطبيق برمجية المصادقة المشددة للاتصالات اللحظية
@@ -23,7 +41,7 @@ let io;
 const initWebSocket = (server) => {
   io = socketIo(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000'],
+      origin: getSocketAllowedOrigins(),
       methods: ['GET', 'POST'],
       credentials: true
     }

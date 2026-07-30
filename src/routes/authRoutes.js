@@ -18,7 +18,7 @@ const { authenticateToken } = require('../middlewares/auth');
 // ==============================================================================
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 دقيقة
-  max: 30, // 30 محاولة
+  max: 10, // 10 محاولة
   skipSuccessfulRequests: true, // عدم احتساب المحاولات الناجحة
   message: { error: 'تم تجاوز عدد محاولات تسجيل الدخول الخاطئة المسموح بها. يرجى المحاولة بعد 15 دقيقة.' },
   standardHeaders: true,

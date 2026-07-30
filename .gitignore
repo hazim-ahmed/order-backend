@@ -5,6 +5,8 @@ package-lock.json
 # Environment variables
 .env
 .env.*
+.env.render
+*.env.render
 !.env.example
 
 # Logs

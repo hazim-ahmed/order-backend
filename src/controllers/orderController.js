@@ -9,6 +9,9 @@ const { randomBytes } = require('crypto');
 const { Order, OrderItem, Product, Client, User, OrderStatusLog, sequelize } = require('../models');
 const { transitionOrder } = require('../services/stateMachine');
 const { notifyRole, notifyUser } = require('../services/notificationService');
+const { addDecimal, divideDecimal, multiplyDecimal } = require('../utils/decimal');
+
+const isDev = process.env.NODE_ENV !== 'production';
 
 // ==============================================================================
 // طھط§ط±ظٹط® ط§ظ„طھط¹ط¯ظٹظ„: 2026-07-22
@@ -82,9 +85,8 @@ const createOrder = async (req, res) => {
     }
 
     // [ط¥طµظ„ط§ط­ M-3] طھظˆظ„ظٹط¯ ط±ظ‚ظ… ط·ظ„ط¨ ظپط±ظٹط¯ ط¨ط§ط³طھط®ط¯ط§ظ… crypto ط¨ط¯ظ„ط§ظ‹ ظ…ظ† Math.random()
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const randomHex = randomBytes(2).toString('hex').toUpperCase();
-    const order_number = `KMT-${dateStr}-${randomHex}`;
+    // توليد رقم طلب فريد داخل نفس transaction قبل إنشاء السجل.
+    const order_number = await createUniqueOrderNumber(transaction);
 
     let total_tons = 0;
     let products_amount = 0;
@@ -120,7 +122,7 @@ const createOrder = async (req, res) => {
       }
 
       // طھط­ظˆظٹظ„ ط§ظ„ظƒظ…ظٹط© ط¥ظ„ظ‰ ط£ط·ظ†ط§ظ† ظ„ظ„ط­ط³ط§ط¨ط§طھ ط§ظ„ظ…ط±ظƒط²ظٹط© ظˆط§ظ„ظ…ط§ظ„ظٹط©
-      const quantity_tons = isKg ? (rawQty / 1000) : rawQty;
+      const quantity_tons = isKg ? divideDecimal(rawQty, 1000) : rawQty;
 
       let product;
       if (item.product_id) {
@@ -143,8 +145,8 @@ const createOrder = async (req, res) => {
         priceSnapshot = Number(product.current_price_per_ton);
       }
 
-      total_tons += quantity_tons;
-      products_amount += quantity_tons * Number(priceSnapshot);
+      total_tons = addDecimal(total_tons, quantity_tons);
+      products_amount = addDecimal(products_amount, multiplyDecimal(quantity_tons, Number(priceSnapshot)));
 
       orderItemsToCreate.push({
         order_id: order.id,
@@ -192,6 +194,22 @@ const createOrder = async (req, res) => {
   }
 };
 
+// يولد رقم طلب بثمانية رموز عشوائية لتقليل احتمالات التصادم.
+const generateOrderNumber = () => {
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randomHex = randomBytes(4).toString('hex').toUpperCase();
+  return `KMT-${dateStr}-${randomHex}`;
+};
+
+// يتحقق من تفرد رقم الطلب قبل الحفظ ويعيد المحاولة عدة مرات عند التصادم.
+const createUniqueOrderNumber = async (transaction) => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const orderNumber = generateOrderNumber();
+    const existingOrder = await Order.findOne({ where: { order_number: orderNumber }, transaction });
+    if (!existingOrder) return orderNumber;
+  }
+  throw new Error('تعذر توليد رقم طلب فريد، يرجى المحاولة مرة أخرى.');
+};
 /**
  * طھط؛ظٹظٹط± ط­ط§ظ„ط© ط§ظ„ط·ظ„ط¨ (ط§ط³طھط¯ط¹ط§ط، State Machine)
  */
@@ -343,7 +361,7 @@ const getOrders = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: isDev ? error.message : 'حدث خطأ داخلي في الخادم.' });
   }
 };
 
@@ -373,7 +391,7 @@ const getOrderById = async (req, res) => {
 
     res.status(200).json(order);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: isDev ? error.message : 'حدث خطأ داخلي في الخادم.' });
   }
 };
 

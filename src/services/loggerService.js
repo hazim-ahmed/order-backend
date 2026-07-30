@@ -22,16 +22,7 @@ const MAX_MEMORY_LOGS = 1000;
 const memoryLogs = [];
 
 // إضافة سجلات تشغيل افتراضية للمراقبة المباشرة عند بدء السيرفر
-addLog({
-  level: 'INFO',
-  category: 'SYSTEM',
-  message: '🚀 خادم KMT OMS ومحرك المراقبة اللحظية يعمل بكفاءة بالخلفية'
-});
-addLog({
-  level: 'INFO',
-  category: 'DB',
-  message: '✅ الاتصال بقاعدة البيانات MySQL ومصفوفة الصلاحيات المركزية آمن ومستقر'
-});
+
 
 /**
  * ==============================================================================
@@ -79,6 +70,17 @@ function addLog({ level = 'INFO', category = 'SYSTEM', message = '', details = n
 
   return logEntry;
 }
+
+addLog({
+  level: 'INFO',
+  category: 'SYSTEM',
+  message: '🚀 خادم KMT OMS ومحرك المراقبة اللحظية يعمل بكفاءة بالخلفية'
+});
+addLog({
+  level: 'INFO',
+  category: 'DB',
+  message: '✅ الاتصال بقاعدة البيانات MySQL ومصفوفة الصلاحيات المركزية آمن ومستقر'
+});
 
 /**
  * ==============================================================================

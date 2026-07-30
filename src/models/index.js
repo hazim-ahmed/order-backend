@@ -18,6 +18,7 @@ const DeliveryDocumentBatch = require('./DeliveryDocumentBatch');
 const DeliveryDocumentBook = require('./DeliveryDocumentBook');
 const DeliveryDocumentUsage = require('./DeliveryDocumentUsage');
 const SystemSetting = require('./SystemSetting');
+const ERPSettings = require('./ERPSettings');
 
 /**
  * بناء العلاقات (Associations) بين الجداول في قاعدة البيانات
@@ -138,5 +139,6 @@ module.exports = {
   DeliveryDocumentBatch,
   DeliveryDocumentBook,
   DeliveryDocumentUsage,
-  SystemSetting
+  SystemSetting,
+  ERPSettings
 };

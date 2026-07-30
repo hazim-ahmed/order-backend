@@ -28,7 +28,7 @@ const REFUND_MODES = ['good_only', 'good_and_damaged', 'all'];
 
 const generateReferenceNumber = (prefix) => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const randomHex = randomBytes(2).toString('hex').toUpperCase();
+  const randomHex = randomBytes(4).toString('hex').toUpperCase();
   return `${prefix}-${dateStr}-${randomHex}`;
 };
 
@@ -200,7 +200,7 @@ const getSalesReturns = async (req, res) => {
     const { page = 1, limit = 50, status } = req.query;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * limitNum;
 
     const whereClause = {};
@@ -321,6 +321,10 @@ const approveSalesReturn = async (req, res) => {
         message: `تم رفض طلب المرتجع ${salesReturn.return_number}: ${salesReturn.rejection_reason}`
       });
       return res.status(200).json({ message: 'تم رفض طلب المرتجع.', salesReturn });
+    }
+
+    if (approval_stage === 'finance' && req.user.role !== 'admin') {
+      throw new Error('الاعتماد المالي للمرتجعات محصور بدور admin فقط.');
     }
 
     if (salesReturn.status !== RETURN_STATUSES.REQUESTED) {

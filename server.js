@@ -28,6 +28,7 @@ const coreRoutes = require('./src/routes/coreRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const clientRoutes = require('./src/routes/clientRoutes');
 const productRoutes = require('./src/routes/productRoutes');
+const erpSettingsRoutes = require('./src/routes/erpSettingsRoutes');
 const categoryRoutes = require('./src/routes/categoryRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
 const salesReturnRoutes = require('./src/routes/salesReturnRoutes');
@@ -41,20 +42,39 @@ startDriverTimeoutMonitor();
 startDatabaseBackupJob();
 startERPSyncJob();
 
-const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map(u => u.trim())
-  : ['http://localhost', 'http://localhost:80', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000', 'http://127.0.0.1'];
+// يقرأ قائمة الأصول المسموحة من متغيرات البيئة ويدعم الفصل بالفواصل.
+const parseAllowedOrigins = (...values) => {
+  return Array.from(new Set(values
+    .filter(Boolean)
+    .flatMap(value => String(value).split(','))
+    .map(value => value.trim())
+    .filter(Boolean)));
+};
+
+// نسمح محليا بمنافذ التطوير فقط خارج الإنتاج لتجنب فتح CORS على منصات عامة.
+const localDevOrigins = ['http://localhost', 'http://localhost:80', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000', 'http://127.0.0.1'];
+const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL, process.env.FRONTEND_URL);
+if (process.env.NODE_ENV !== 'production') {
+  allowedOrigins.push(...localDevOrigins.filter(origin => !allowedOrigins.includes(origin)));
+}
+
+// يفحص الأصل الوارد بدقة؛ في الإنتاج لا توجد سماحات wildcard على نطاقات الاستضافة العامة.
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (process.env.NODE_ENV === 'production') return false;
+
+  try {
+    const parsedOrigin = new URL(origin);
+    return ['localhost', '127.0.0.1'].includes(parsedOrigin.hostname);
+  } catch (error) {
+    return false;
+  }
+};
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (
-      !origin ||
-      allowedOrigins.includes(origin) ||
-      origin.startsWith('http://localhost') ||
-      origin.startsWith('http://127.0.0.1') ||
-      origin.endsWith('.onrender.com') ||
-      origin.endsWith('.vercel.app')
-    ) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error('غير مسموح بطلب المصدر عبر إعدادات CORS.'));
@@ -91,6 +111,7 @@ app.use('/api/core', coreRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/erp-settings', erpSettingsRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/sales-returns', salesReturnRoutes);
@@ -100,7 +121,15 @@ app.get('/', (req, res) => {
   res.send('مرحباً بك في نظام إدارة الطلبات KMT OMS - الخادم يعمل بنجاح');
 });
 
-async function runStartupMigrations() {
+// يعالج أي خطأ غير ملتقط من Express برسالة عامة في الإنتاج.
+app.use((err, req, res, next) => {
+  console.error('Unhandled Express error:', err);
+  if (res.headersSent) return next(err);
+  const statusCode = err.status || err.statusCode || 500;
+  const message = process.env.NODE_ENV === 'production' ? 'حدث خطأ داخلي في الخادم.' : err.message;
+  return res.status(statusCode).json({ error: message });
+});
+async function runStartupChecks() {
   try {
     const { User } = require('./src/models');
     const userCount = await User.count();
@@ -111,35 +140,6 @@ async function runStartupMigrations() {
     console.error('تحذير فحص الحسابات الأولية:', seedErr.message);
   }
 
-  const schemaUpdates = [
-    "ALTER TABLE orders ADD COLUMN shipped_tons DECIMAL(12,3) NULL DEFAULT NULL AFTER total_tons;",
-    "ALTER TABLE orders ADD COLUMN delivery_reference_number VARCHAR(255) NULL DEFAULT NULL AFTER delivery_image_url;",
-    "ALTER TABLE orders ADD COLUMN delivery_type ENUM('delivery', 'customer_pickup') NOT NULL DEFAULT 'delivery';",
-    "ALTER TABLE orders ADD COLUMN pickup_driver_name VARCHAR(255) NULL DEFAULT NULL;",
-    "ALTER TABLE orders ADD COLUMN pickup_vehicle_plate VARCHAR(255) NULL DEFAULT NULL;",
-    "ALTER TABLE orders ADD COLUMN pickup_receiver_id VARCHAR(255) NULL DEFAULT NULL;",
-    "ALTER TABLE order_items ADD COLUMN unit VARCHAR(50) NOT NULL DEFAULT 'kg';",
-    "ALTER TABLE order_items ADD COLUMN entered_quantity DECIMAL(12,3) NULL DEFAULT NULL;",
-    "ALTER TABLE orders ADD COLUMN freight_rate DECIMAL(12,3) NOT NULL DEFAULT 0;",
-    "ALTER TABLE orders ADD COLUMN freight_unit VARCHAR(50) NOT NULL DEFAULT 'kg';",
-    "ALTER TABLE orders ADD COLUMN freight_amount DECIMAL(15,3) NOT NULL DEFAULT 0;",
-    "ALTER TABLE sales_return_items ADD COLUMN verified_missing_tons DECIMAL(12,3) NOT NULL DEFAULT 0 AFTER verified_damaged_tons;",
-    "ALTER TABLE sales_returns ADD COLUMN verified_missing_tons DECIMAL(12,3) NOT NULL DEFAULT 0 AFTER verified_damaged_tons;",
-    "ALTER TABLE sales_returns MODIFY COLUMN status ENUM('return_requested','sales_approved','finance_approved','in_transit','driver_delivered','inspected','returned_to_warehouse','credit_note_issued','rejected') NOT NULL DEFAULT 'return_requested';",
-    "ALTER TABLE sales_returns ADD COLUMN refund_mode ENUM('good_only','good_and_damaged','all') NULL DEFAULT NULL AFTER rejection_reason;",
-    "ALTER TABLE sales_returns ADD COLUMN original_order_status VARCHAR(255) NULL DEFAULT NULL AFTER refund_mode;",
-    "ALTER TABLE sales_returns ADD COLUMN driver_delivered_at DATETIME NULL DEFAULT NULL AFTER finance_approved_at;",
-    "ALTER TABLE orders ADD COLUMN document_posted_to_erp TINYINT(1) NOT NULL DEFAULT 0 AFTER delivery_reference_number;",
-    "ALTER TABLE orders ADD COLUMN erp_invoice_number VARCHAR(255) NULL DEFAULT NULL AFTER document_posted_to_erp;",
-    "ALTER TABLE orders ADD COLUMN document_posted_at DATETIME NULL DEFAULT NULL AFTER erp_invoice_number;",
-    "ALTER TABLE orders ADD UNIQUE INDEX idx_orders_erp_invoice_number_unique (erp_invoice_number);"
-  ];
-
-  for (const statement of schemaUpdates) {
-    try {
-      await sequelize.query(statement);
-    } catch (colErr) {}
-  }
 
   try {
     const { DeliveryDocumentBatch, DeliveryDocumentBook, DeliveryDocumentUsage, SystemSetting } = require('./src/models');
@@ -162,7 +162,7 @@ server.listen(PORT, async () => {
   try {
     await sequelize.authenticate();
     console.log('تم تأكيد الاتصال بقاعدة البيانات.');
-    await runStartupMigrations();
+    await runStartupChecks();
   } catch (error) {
     console.error('فشل الاتصال بقاعدة البيانات:', error);
   }

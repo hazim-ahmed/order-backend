@@ -10,8 +10,8 @@
 const PERMISSIONS = {
   // صلاحيات إنشاء وتصفح الطلبات
   'order:create':             ['sales_rep', 'admin'],
-  'order:view_own':            ['sales_rep', 'driver', 'temp_driver'],
-  'order:view_all':           ['admin', 'sales_manager', 'inventory_manager', 'driver_supervisor', 'fleet_leader'],
+  'order:view_own':            ['sales_rep', 'driver'],
+  'order:view_all':           ['admin', 'sales_manager', 'inventory_manager'],
 
   // موافقات وإلغاءات المبيعات
   'order:approve_sales':      ['sales_manager', 'admin'],
@@ -23,10 +23,10 @@ const PERMISSIONS = {
   'order:ready_for_pickup':   ['inventory_manager', 'admin'],
 
   // إسناد واستلام الرحلات للسائقين
-  'order:assign_driver':      ['inventory_manager', 'driver_supervisor', 'fleet_leader', 'admin'],
-  'order:pickup_driver':      ['driver', 'temp_driver', 'admin'],
-  'order:confirm_delivery':   ['driver', 'temp_driver', 'inventory_manager', 'admin'],
-  'order:fail_delivery':      ['driver', 'temp_driver', 'admin'],
+  'order:assign_driver':      ['inventory_manager', 'admin'],
+  'order:pickup_driver':      ['driver', 'admin'],
+  'order:confirm_delivery':   ['driver', 'inventory_manager', 'admin'],
+  'order:fail_delivery':      ['driver', 'admin'],
 
   // إرجاع وإلغاء كلي
   'order:return_warehouse':   ['inventory_manager', 'admin'],

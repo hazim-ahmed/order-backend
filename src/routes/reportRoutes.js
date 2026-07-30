@@ -1,53 +1,30 @@
-// ==============================================================================
-// تاريخ التعديل: 2026-07-22
-// الوظيفة: مسارات تقارير الإدارة وسجلات النظام والمراقبة الحية
-// السياق: تم إدراج مسارات جلب وتفريغ سجلات الأخطاء والمراقبة اللحظية للسيرفر
-// مرجع الأمان: System Monitoring & Audit Log Authorization
-// ==============================================================================
-
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireRole } = require('../middlewares/auth');
-const { 
-  getComprehensiveReport, 
-  updateShippedTons, 
+const {
+  getComprehensiveReport,
+  updateShippedTons,
   exportExcelReport,
   getSystemLogs,
   clearSystemLogs
 } = require('../controllers/reportController');
 
-// حماية مسارات التقارير بالإدارة فقط
+// كل مسارات التقارير تحتاج مصادقة قبل تطبيق صلاحيات الدور.
 router.use(authenticateToken);
-router.use(requireRole(['admin']));
 
-/**
- * @route   GET /api/reports/comprehensive
- * @desc    جلب بيانات التقارير الشاملة ومطابقة الشحن وأداء المناديب
- */
-router.get('/comprehensive', getComprehensiveReport);
+// التقرير الشامل محصور بالإدارة لأنه يعرض بيانات مالية وتشغيلية كاملة.
+router.get('/comprehensive', requireRole(['admin']), getComprehensiveReport);
 
-/**
- * @route   PUT /api/reports/shipped-tons/:orderId
- * @desc    تحديث كمية الشحن الفعلية لطلب معين للمطابقة
- */
-router.put('/shipped-tons/:orderId', updateShippedTons);
+// تحديث كمية الشحن الفعلية مسموح للإدارة وأمين المخزن لأنه جزء من المطابقة التشغيلية.
+router.put('/shipped-tons/:orderId', requireRole(['admin', 'inventory_manager']), updateShippedTons);
 
-/**
- * @route   GET /api/reports/excel
- * @desc    تصدير التقرير الشامل بـ 3 أوراق عمل في ملف Excel واحد
- */
-router.get('/excel', exportExcelReport);
+// تصدير Excel محصور بالإدارة لأنه يخرج ملفا شاملا خارج النظام.
+router.get('/excel', requireRole(['admin']), exportExcelReport);
 
-/**
- * @route   GET /api/reports/system-logs
- * @desc    جلب سجلات النظام والمؤشرات اللحظية لأداء السيرفر والميموري
- */
-router.get('/system-logs', getSystemLogs);
+// سجلات النظام محصورة بالإدارة فقط.
+router.get('/system-logs', requireRole(['admin']), getSystemLogs);
 
-/**
- * @route   DELETE /api/reports/system-logs
- * @desc    تفريغ سجلات الذاكرة بالنظام
- */
-router.delete('/system-logs', clearSystemLogs);
+// تفريغ سجلات النظام محصور بالإدارة فقط.
+router.delete('/system-logs', requireRole(['admin']), clearSystemLogs);
 
 module.exports = router;

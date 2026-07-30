@@ -14,7 +14,7 @@ async function cleanupTemporaryDocuments() {
     const orphanDocs = await DeliveryDocument.findAll({
       where: {
         status: 'temporary',
-        created_at: {
+        createdAt: {
           [Op.lt]: cutoffTime
         }
       }

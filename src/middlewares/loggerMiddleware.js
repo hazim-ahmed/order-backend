@@ -7,6 +7,19 @@
 
 const { addLog } = require('../services/loggerService');
 
+// قائمة مفاتيح query التي لا يجب حفظ قيمها في السجلات.
+const SENSITIVE_QUERY_KEYS = ['token', 'access_token', 'refresh_token', 'password', 'secret', 'api_key', 'key'];
+
+// يخفي القيم الحساسة من query params مع إبقاء أسماء الحقول لأغراض التشخيص.
+const redactSensitiveQuery = (query = {}) => {
+  const redacted = {};
+  for (const [key, value] of Object.entries(query)) {
+    const normalizedKey = key.toLowerCase();
+    redacted[key] = SENSITIVE_QUERY_KEYS.some(sensitiveKey => normalizedKey.includes(sensitiveKey)) ? '[REDACTED]' : value;
+  }
+  return redacted;
+};
+
 /**
  * ==============================================================================
  * تاريخ التعديل: 2026-07-22
@@ -33,6 +46,7 @@ function requestLogger(req, res, next) {
 
     const message = `${req.method} ${req.originalUrl} - ${statusCode} (${durationMs}ms)`;
     const category = req.originalUrl.startsWith('/api/auth') ? 'AUTH' : 'HTTP';
+    const safeQuery = redactSensitiveQuery(req.query);
 
     addLog({
       level,
@@ -44,7 +58,7 @@ function requestLogger(req, res, next) {
       details: {
         ip: req.ip || req.headers['x-forwarded-for'],
         userAgent: req.headers['user-agent'],
-        query: Object.keys(req.query).length ? req.query : undefined
+        query: Object.keys(safeQuery).length ? safeQuery : undefined
       }
     });
   });

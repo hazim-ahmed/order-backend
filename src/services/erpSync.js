@@ -6,6 +6,13 @@
 const { Client, Product } = require('../models');
 const cron = require('node-cron');
 
+// يحدد هل يسمح بتشغيل مزامنة ERP الوهمية في هذه البيئة.
+const shouldRunMockERPSync = () => {
+  if (process.env.ENABLE_MOCK_ERP_SYNC === 'true') return true;
+  if (process.env.ENABLE_MOCK_ERP_SYNC === 'false') return false;
+  return process.env.NODE_ENV !== 'production';
+};
+
 /**
  * دالة تحاكي الاتصال بـ API الخاص بـ ERP لجلب البيانات
  * في الواقع سيتم استخدام axios.get('ERP_URL')
@@ -33,6 +40,11 @@ const fetchMockERPData = async () => {
  * تنفيذ عملية المزامنة
  */
 const syncWithERP = async () => {
+  if (!shouldRunMockERPSync()) {
+    console.log('تم تعطيل مزامنة ERP الوهمية في هذه البيئة.');
+    return { skipped: true };
+  }
+
   console.log('🔄 جاري بدء المزامنة مع الـ ERP...');
   
   try {
@@ -90,7 +102,12 @@ const syncWithERP = async () => {
  * بدء مهمة المزامنة المجدولة (كل 30 دقيقة)
  */
 const startERPSyncJob = () => {
-  cron.schedule('*/30 * * * *', () => {
+  if (!shouldRunMockERPSync()) {
+    console.log('تم تعطيل جدولة ERP mock sync في هذه البيئة.');
+    return null;
+  }
+
+  return cron.schedule('*/30 * * * *', () => {
     syncWithERP();
   });
 };

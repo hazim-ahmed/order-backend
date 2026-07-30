@@ -19,9 +19,7 @@ const transitions = [
   { from: 'pending_inventory_approval', to: 'processing_in_warehouse', roles: ['inventory_manager', 'admin'] },
   { from: 'processing_in_warehouse', to: 'assigned_to_driver', roles: ['inventory_manager', 'admin'] },
   { from: 'processing_in_warehouse', to: 'ready_for_pickup', roles: ['inventory_manager', 'admin'] },
-  { from: 'processing_in_warehouse', to: 'delivered', roles: ['inventory_manager', 'admin'] },
   { from: 'assigned_to_driver', to: 'ready_for_pickup', roles: ['inventory_manager', 'admin'] },
-  { from: 'assigned_to_driver', to: 'delivered', roles: ['inventory_manager', 'admin'] },
   { from: 'ready_for_pickup', to: 'delivered', roles: ['inventory_manager', 'admin'] },
   
   // السائق
@@ -330,7 +328,7 @@ const transitionOrder = async (orderId, targetStatus, user, payload = {}) => {
       const existingReturn = await SalesReturn.findOne({ where: { order_id: order.id }, transaction });
       if (!existingReturn) {
         const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const randomHex = crypto.randomBytes(2).toString('hex').toUpperCase();
+        const randomHex = crypto.randomBytes(4).toString('hex').toUpperCase();
         const return_number = `RET-${dateStr}-${randomHex}`;
 
         const totalTons = order.items ? order.items.reduce((s, i) => s + Number(i.quantity_tons || 0), 0) : 0;

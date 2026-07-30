@@ -291,13 +291,22 @@ router.delete('/documents/:id', async (req, res) => {
     if (doc.uploaded_by !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'لا تملك صلاحية لحذف هذا المستند.' });
     }
-
-    if (doc.object_key) await storage.delete({ key: doc.object_key });
-    if (doc.thumbnail_key) await storage.delete({ key: doc.thumbnail_key });
+    const previousStatus = doc.status;
+    const previousDeletedAt = doc.deleted_at;
 
     doc.status = 'deleted';
     doc.deleted_at = new Date();
     await doc.save();
+
+    try {
+      if (doc.object_key) await storage.delete({ key: doc.object_key });
+      if (doc.thumbnail_key) await storage.delete({ key: doc.thumbnail_key });
+    } catch (storageError) {
+      doc.status = previousStatus;
+      doc.deleted_at = previousDeletedAt;
+      await doc.save();
+      throw storageError;
+    }
 
     res.status(200).json({ message: 'تم حذف المستند بنجاح.' });
   } catch (error) {
