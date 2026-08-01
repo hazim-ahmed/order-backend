@@ -1,0 +1,39 @@
+# Render Environment Variables - KMT OMS Backend
+# انسخ القيم إلى Render Dashboard > Backend Service > Environment
+# لا ترفع هذا الملف كملف أسرار، ولا تضع القيم الحقيقية في git.
+
+NODE_ENV=production
+PORT=5000
+TRUST_PROXY=1
+
+# Database
+DB_HOST=ضع_رابط_قاعدة_البيانات
+DB_PORT=3306
+DB_NAME=ضع_اسم_قاعدة_البيانات
+DB_USER=ضع_اسم_المستخدم
+DB_PASS=ضع_كلمة_مرور_قاعدة_البيانات
+
+# Security
+JWT_SECRET=ضع_سر_JWT_طويل_تم_توليده_بـ_crypto_randomBytes_64
+
+# Frontend CORS
+# ضع رابط الواجهة الحقيقي، وليس رابط الباك اند.
+CLIENT_URL=https://رابط-الواجهة-الحقيقي
+FRONTEND_URL=https://رابط-الواجهة-الحقيقي
+
+# ERP
+ERP_SETTINGS_ENCRYPTION_KEY=ضع_مفتاح_تشفير_ERP_تم_توليده_بـ_crypto_randomBytes_32
+ERP_ALLOWED_HOSTS=smarterp.top
+ENABLE_MOCK_ERP_SYNC=false
+ALLOW_ERP_CREDENTIALS_IN_BODY=false
+
+# Optional storage
+STORAGE_DRIVER=local
+LOCAL_UPLOAD_DIR=uploads
+
+# Optional database backup
+BACKUP_RETENTION_DAYS=30
+BACKUP_ENCRYPTION_KEY=
+BACKUP_S3_BUCKET=
+BACKUP_S3_REGION=
+BACKUP_DELETE_LOCAL_AFTER_UPLOAD=false

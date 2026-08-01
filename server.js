@@ -35,6 +35,14 @@ const salesReturnRoutes = require('./src/routes/salesReturnRoutes');
 const deliveryDocumentBookRoutes = require('./src/routes/deliveryDocumentBookRoutes');
 
 const app = express();
+
+// Render يرسل X-Forwarded-For عبر reverse proxy، وهذا الإعداد يجعل rate limit يحسب IP الصحيح.
+const trustProxyValue = process.env.TRUST_PROXY || (process.env.NODE_ENV === 'production' ? '1' : '0');
+if (trustProxyValue !== '0' && trustProxyValue !== 'false') {
+  const numericTrustProxy = Number(trustProxyValue);
+  app.set('trust proxy', Number.isNaN(numericTrustProxy) ? trustProxyValue : numericTrustProxy);
+}
+
 const server = http.createServer(app);
 
 initWebSocket(server);
