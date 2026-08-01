@@ -55,7 +55,7 @@ const parseAllowedOrigins = (...values) => {
   return Array.from(new Set(values
     .filter(Boolean)
     .flatMap(value => String(value).split(','))
-    .map(value => value.trim())
+    .map(value => value.trim().replace(/\/+$/, ''))
     .filter(Boolean)));
 };
 
