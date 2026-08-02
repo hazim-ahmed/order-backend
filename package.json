@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "migrate": "node scripts/run-migrations.js",
-    "test": "jest --detectOpenHandles"
+    "test": "jest --detectOpenHandles",
+    "backup:full": "node scripts/run-full-backup.js"
   },
   "keywords": [],
   "author": "",

@@ -15,6 +15,7 @@ const { sequelize } = require('./src/models');
 const { initWebSocket } = require('./src/services/notificationService');
 const { startDriverTimeoutMonitor } = require('./src/jobs/driverTimeoutMonitor');
 const { startDatabaseBackupJob } = require('./src/jobs/databaseBackup');
+const { startFullBackupJob } = require('./src/jobs/applicationBackup');
 const { startERPSyncJob } = require('./src/services/erpSync');
 const { requestLogger } = require('./src/middlewares/loggerMiddleware');
 const { authenticateToken } = require('./src/middlewares/auth');
@@ -33,6 +34,7 @@ const categoryRoutes = require('./src/routes/categoryRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
 const salesReturnRoutes = require('./src/routes/salesReturnRoutes');
 const deliveryDocumentBookRoutes = require('./src/routes/deliveryDocumentBookRoutes');
+const backupRoutes = require('./src/routes/backupRoutes');
 
 const app = express();
 
@@ -48,6 +50,7 @@ const server = http.createServer(app);
 initWebSocket(server);
 startDriverTimeoutMonitor();
 startDatabaseBackupJob();
+startFullBackupJob();
 startERPSyncJob();
 
 // يقرأ قائمة الأصول المسموحة من متغيرات البيئة ويدعم الفصل بالفواصل.
@@ -124,6 +127,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/sales-returns', salesReturnRoutes);
 app.use('/api/delivery-document-books-manager', deliveryDocumentBookRoutes);
+app.use('/api/backups', backupRoutes);
 
 app.get('/', (req, res) => {
   res.send('مرحباً بك في نظام إدارة الطلبات KMT OMS - الخادم يعمل بنجاح');
