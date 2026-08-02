@@ -71,6 +71,24 @@ class S3StorageProvider extends StorageProvider {
     return await getSignedUrl(client, command, { expiresIn: ttl });
   }
 
+  async getObject({ key }) {
+    if (!key) throw new Error('Object key is required');
+    const { GetObjectCommand } = require('@aws-sdk/client-s3');
+    const client = this.getClient();
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key
+    });
+
+    const response = await client.send(command);
+    return {
+      body: response.Body,
+      contentType: response.ContentType,
+      contentLength: response.ContentLength
+    };
+  }
+
   async delete({ key }) {
     if (!key) return false;
     const { DeleteObjectCommand } = require('@aws-sdk/client-s3');

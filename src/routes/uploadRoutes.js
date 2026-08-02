@@ -98,8 +98,8 @@ router.post('/delivery', uploadLimiter, (req, res) => {
       }
 
       // 4. رفع الملف الرئيسي و Thumbnail إلى مزود التخزين المعتمد
-      const driverName = process.env.STORAGE_DRIVER || 'local';
-      await storage.store({
+      const driverName = (process.env.STORAGE_DRIVER || 'local').toLowerCase();
+      const storedObject = await storage.store({
         buffer: processed.optimizedBuffer,
         key: storedObjectKey,
         contentType: processed.mimeType
@@ -119,7 +119,7 @@ router.post('/delivery', uploadLimiter, (req, res) => {
         docRecord = await DeliveryDocument.create({
           order_id: req.body.order_id ? Number(req.body.order_id) : null,
           uploaded_by: req.user.id,
-          storage_driver: driverName,
+          storage_driver: storedObject.driver || driverName,
           object_key: storedObjectKey,
           thumbnail_key: storedThumbKey,
           original_name: req.file.originalname,
@@ -192,9 +192,15 @@ router.get('/documents/:id/view', async (req, res) => {
     const keyToServe = (isThumb && doc.thumbnail_key) ? doc.thumbnail_key : doc.object_key;
 
     // إذا كان التخزين S3، يتم إرجاع رابط موقع أومناقلته بـ Redirect
-    if (doc.storage_driver === 's3') {
-      const signedUrl = await storage.getDownloadUrl({ key: keyToServe, expiresIn: 300 });
-      return res.redirect(signedUrl);
+    if (String(doc.storage_driver || '').toLowerCase() === 's3') {
+      if (typeof storage.getObject !== 'function') {
+        return res.status(500).json({ error: 'مزود التخزين S3 غير مفعل على الخادم الحالي.' });
+      }
+      const object = await storage.getObject({ key: keyToServe });
+      res.setHeader('Content-Type', object.contentType || doc.mime_type || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      if (object.contentLength) res.setHeader('Content-Length', object.contentLength);
+      return object.body.pipe(res);
     }
 
     // إذا كان التخزين محلي، يتم تدفق الملف مع ترويسة Cache-Control آمنة
@@ -250,9 +256,15 @@ router.get('/documents/:id/download', async (req, res) => {
 
     const safeDownloadName = `Delivery_Proof_${doc.order?.order_number || doc.id}${path.extname(doc.object_key)}`;
 
-    if (doc.storage_driver === 's3') {
-      const signedUrl = await storage.getDownloadUrl({ key: doc.object_key, expiresIn: 300 });
-      return res.redirect(signedUrl);
+    if (String(doc.storage_driver || '').toLowerCase() === 's3') {
+      if (typeof storage.getObject !== 'function') {
+        return res.status(500).json({ error: 'مزود التخزين S3 غير مفعل على الخادم الحالي.' });
+      }
+      const object = await storage.getObject({ key: doc.object_key });
+      res.setHeader('Content-Type', object.contentType || doc.mime_type || 'application/octet-stream');
+      if (object.contentLength) res.setHeader('Content-Length', object.contentLength);
+      res.attachment(safeDownloadName);
+      return object.body.pipe(res);
     }
 
     const fs = require('fs');

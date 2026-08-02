@@ -28,6 +28,16 @@ class StorageProvider {
   }
 
   /**
+   * Get a readable object from storage
+   * @param {Object} params
+   * @param {string} params.key
+   * @returns {Promise<{ body: import('stream').Readable, contentType?: string, contentLength?: number }>}
+   */
+  async getObject({ key }) {
+    throw new Error('getObject() method must be implemented');
+  }
+
+  /**
    * Delete a file from storage
    * @param {Object} params
    * @param {string} params.key
