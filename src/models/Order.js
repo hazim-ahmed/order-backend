@@ -132,6 +132,20 @@ const Order = sequelize.define('Order', {
     allowNull: true,
     comment: 'الرقم المرجعي لسند الاستلام المرفوع من السائق'
   },
+  document_posted_to_erp: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  erp_invoice_number: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: 'idx_orders_erp_invoice_number_unique'
+  },
+  document_posted_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   // [إصلاح] حقول تتبع حالة المخزون لمنع الخصم/الإرجاع المزدوج
   inventory_deducted_at: {
     type: DataTypes.DATE,

@@ -423,8 +423,8 @@ const updateDocumentPosting = async (req, res) => {
       return res.status(400).json({ error: 'ظٹظ…ظƒظ† طھط­ط¯ظٹط« ط¨ظٹط§ظ†ط§طھ ط§ظ„طھط±ط­ظٹظ„ ظ„ظ„ط·ظ„ط¨ط§طھ ط§ظ„ظ…ط³طھظ„ظ…ط© ظپظ‚ط·.' });
     }
 
-    const posted = Boolean(document_posted_to_erp);
-    const invoiceNumber = String(erp_invoice_number || '').trim();
+    const posted = document_posted_to_erp === true || document_posted_to_erp === 1 || document_posted_to_erp === 'true' || document_posted_to_erp === '1';
+    const invoiceNumber = posted ? String(erp_invoice_number || '').trim() : '';
 
     if (posted && !invoiceNumber) {
       return res.status(400).json({ error: 'ط±ظ‚ظ… ظپط§طھظˆط±ط© ط§ظ„ظ†ط¸ط§ظ… ط§ظ„ط±ط¦ظٹط³ظٹ ظ…ط·ظ„ظˆط¨ ط¹ظ†ط¯ طھط£ظƒظٹط¯ طھط±ط­ظٹظ„ ط§ظ„ط³ظ†ط¯.' });
@@ -453,7 +453,8 @@ const updateDocumentPosting = async (req, res) => {
       order
     });
   } catch (error) {
-    if (error.name === 'SequelizeUniqueConstraintError') {
+    const duplicateCode = error.parent?.code || error.original?.code;
+    if (error.name === 'SequelizeUniqueConstraintError' || duplicateCode === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'ط±ظ‚ظ… ظپط§طھظˆط±ط© ط§ظ„ظ†ط¸ط§ظ… ط§ظ„ط±ط¦ظٹط³ظٹ ظ…ط³طھط®ط¯ظ… ط¨ط§ظ„ظپط¹ظ„ ظپظٹ ط·ظ„ط¨ ط¢ط®ط±.' });
     }
     res.status(400).json({ error: error.message });
